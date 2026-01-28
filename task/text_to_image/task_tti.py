@@ -36,22 +36,48 @@ class Quality:
     hd: str = "hd"
 
 async def _save_images(attachments: list[Attachment]):
-    # TODO:
-    #  1. Create DIAL bucket client
-    #  2. Iterate through Images from attachments, download them and then save here
-    #  3. Print confirmation that image has been saved locally
-    raise NotImplementedError
+    # 1. Create DIAL bucket client
+    async with DialBucketClient(API_KEY, DIAL_URL) as dial_bucket_client:
+        # 2. Iterate through images from attachments, download them and then save locally
+        for attachment in attachments:
+            if attachment.url and attachment.type == "image/png":
+                image_data = await dial_bucket_client.get_file(attachment.url)
+
+                file_name = attachment.url.split("/")[-1]
+                with open(file_name, "wb") as file:
+                    file.write(image_data)
+
+                # 3. Print confirmation that the image has been saved locally
+                print(f"Image saved locally as {file_name}")
+
+    print("All images have been saved successfully.")
 
 
 def start() -> None:
-    # TODO:
-    #  1. Create DialModelClient
-    #  2. Generate image for "Sunny day on Bali"
-    #  3. Get attachments from response and save generated message (use method `_save_images`)
-    #  4. Try to configure the picture for output via `custom_fields` parameter.
-    #    - Documentation: See `custom_fields`. https://dialx.ai/dial_api#operation/sendChatCompletionRequest
-    #  5. Test it with the 'imagegeneration@005' (Google image generation model)
-    raise NotImplementedError
+    # 1. Create DialModelClient
+    dial_model_client = DialModelClient(DIAL_CHAT_COMPLETIONS_ENDPOINT, "dall-e-3", API_KEY)
+
+    # 2. Generate image for "Sunny day on Bali" using custom_fields for style, quality, and size
+    custom_fields = {
+        "style": Style.vivid,
+        "quality": Quality.hd,
+        "size": Size.square
+    }
+    response = dial_model_client.get_completion([Message(Role.USER, "Sunny day on Bali")], custom_fields=custom_fields)
+
+    # 3. Get attachments from response's custom_content
+    if response.custom_content and response.custom_content.attachments:
+        attachments = response.custom_content.attachments
+
+        # 4. Save generated images locally
+        asyncio.run(_save_images(attachments))
+
+        # 5. Confirm the task is tested with 'imagegeneration@005' model
+        # Exception: HTTP 404: {"error":{"message":"Image generation failed with the following error: The imagegeneration@005 model has reached its end of life.
+        # Please refer to the migration guide (https://docs.cloud.google.com/vertex-ai/generative-ai/docs/deprecations)
+        # on how to migrate to a newer model.","type":"invalid_request_error","code":"404"}}
+    else:
+        print("No attachments found in the response.")
 
 
 start()
